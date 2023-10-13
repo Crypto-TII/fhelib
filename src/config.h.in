@@ -1,0 +1,27 @@
+#ifndef TIIFHE_CONFIG_H
+#define TIIFHE_CONFIG_H
+
+#define TIIFHE_N         @TIIFHE_N@
+#define TIIFHE_T         @TIIFHE_T@
+#define TIIFHE_QLEN      @TIIFHE_QLEN@
+#define TIIFHE_PLEN      @TIIFHE_PLEN@
+#define TIIFHE_QPLEN     @TIIFHE_QPLEN@
+#define TIIFHE_OMEGA     @TIIFHE_OMEGA@
+#define TIIFHE_KMAX      @TIIFHE_KMAX@
+#cmakedefine01 TIIFHE_FIX_SEED 
+#cmakedefine01 TIIFHE_LOG_ERROR
+
+#define TIIFHE_Q @TIIFHE_Q@
+#define TIIFHE_P @TIIFHE_P@
+
+#include "util.h"
+#include "random.h"
+#include "msg_@TIIFHE_MSG@.h"
+#include "ring_@TIIFHE_RING@.h"
+
+#define tiifhe_mod_init     tiifhe_mod_init_@TIIFHE_MSG@
+#define tiifhe_msg_crt      tiifhe_msg_crt_@TIIFHE_RING@
+#define tiifhe_msg_crt_hexl tiifhe_msg_crt_u64
+#define tiifhe_poly_mod     tiifhe_poly_mod_@TIIFHE_MSG@
+
+#endif /* TIIFHE_CONFIG_H */
