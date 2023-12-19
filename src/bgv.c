@@ -478,9 +478,27 @@ tiifhe_bgv_decode(tiifhe_Message *m, const tiifhe_Encoding *p)
 	tiifhe_msg_crt(m, rns, mods, len);
 	tiifhe_msg_cmod(m, m, mod);
 
+	#if TIIFHE_LOG_ERROR
+	do {
+		static FILE *f = 0;
+
+		if (f == 0) {
+			f = fopen("error.csv", "w+");
+			if (f == 0) {
+				perror("fhelib: failed to open error.csv");
+				exit(1);
+			}
+		}
+
+		tiifhe_msg_fprintdiv(f, m, tiifhe_t.value);
+	} while (0);
+	#endif /* TIIFHE_LOG_ERROR */
+
 	for (i = 0; i < TIIFHE_QLEN; ++i)
 		for (ii = 0; ii < drops[i]; ++ii)
 			tiifhe_msg_mulc(m, m, tiifhe_q[i].value);
+
+	tiifhe_msg_pmod(m, m, tiifhe_t.value);
 
 	tiifhe_util_dealloc(cpy);
 	mpz_clear(mod);

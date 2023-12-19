@@ -47,3 +47,6 @@ However, we expose all data structures and polynomial functions transparently in
 
 ## Error Logging
 With the build option `TIIFHE_LOG_ERROR`, each decryption appends the ciphertext error to a file `error.csv` in the current directory.
+
+## Seed Fixing
+With the build option `TIIFHE_FIX_SEED`, the library generates seeds deterministically, simplifying debugging or generating reference values.
