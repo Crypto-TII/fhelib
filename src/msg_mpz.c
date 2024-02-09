@@ -191,17 +191,6 @@ tiifhe_msg_dealloc(tiifhe_Message *m, size_t len)
 }
 
 void
-tiifhe_msg_addc(tiifhe_Message *rop, const tiifhe_Message *m, uint64_t c)
-{
-	size_t j;
-
-	for (j = 0; j < TIIFHE_N; ++j) {
-		mpz_add_ui(rop->value[j], m->value[j], c);
-		mpz_mod(rop->value[j], rop->value[j], tiifhe_t.value);
-	}
-}
-
-void
 tiifhe_msg_cmod(tiifhe_Message *rop, const tiifhe_Message *m, const mpz_t mod)
 {
 	size_t j;
@@ -247,21 +236,14 @@ tiifhe_msg_crt_u64(tiifhe_Message *m, const uint64_t **rns, const uint64_t *mods
 }
 
 void
-tiifhe_msg_fprintdiv(FILE *f, const tiifhe_Message *m, const mpz_t mod)
+tiifhe_msg_addc(tiifhe_Message *rop, const tiifhe_Message *m, uint64_t c)
 {
-	mpz_t tmp;
 	size_t j;
 
-	mpz_init(tmp);
-
-	for (j = 0; j < TIIFHE_N - 1; ++j) {
-		mpz_tdiv_q(tmp, m->value[j], mod);
-		gmp_fprintf(f, "%Zd, ", tmp);
+	for (j = 0; j < TIIFHE_N; ++j) {
+		mpz_add_ui(rop->value[j], m->value[j], c);
+		mpz_mod(rop->value[j], rop->value[j], tiifhe_t.value);
 	}
-	mpz_tdiv_q(tmp, m->value[j], mod);
-	gmp_fprintf(f, "%Zd\n", tmp);
-
-	mpz_clear(tmp);
 }
 
 void
@@ -325,22 +307,35 @@ tiifhe_msg_pack(tiifhe_Message *rop, const tiifhe_Message *m)
 }
 
 void
-tiifhe_msg_pmod(tiifhe_Message *rop, const tiifhe_Message *m, const mpz_t mod)
-{
-	size_t j;
-
-	for (j = 0; j < TIIFHE_N; ++j)
-		mpz_mod(rop->value[j], m->value[j], mod);
-}
-
-void
 tiifhe_msg_unpack(tiifhe_Message *rop, const tiifhe_Message *m)
 {
 	tiifhe_Message *cpy;
 	size_t dlog, idx, j;
 
 	cpy = tiifhe_msg_alloc(1);
-	tiifhe_msg_copy(cpy, m);
+
+	#if TIIFHE_LOG_ERROR
+	do {
+		static FILE *f = 0;
+		mpz_t tmp;
+
+		if (f == 0) {
+			f = fopen("error.csv", "w+");
+			if (f == 0)
+				perror("fopen"), exit(1);
+		}
+
+		mpz_init(tmp);
+		for (j = 0; j < TIIFHE_N; ++j) {
+			mpz_tdiv_q(tmp, tmp, tiifhe_t.value);
+			gmp_fprintf(f, j < TIIFHE_N - 1 ? "%Zd, " : "%Zd\n", tmp);
+		}
+		mpz_clear(tmp);
+	} while (0);
+	#endif /* TIIFHE_LOG_ERROR */
+
+	for (j = 0; j < TIIFHE_N; ++j)
+		mpz_mod(cpy->value[j], m->value[j], tiifhe_t.value);
 
 	/* actual unpacking */
 	mpz_ntt(cpy->value, TIIFHE_N, tiifhe_t.value, tiifhe_t.root);
