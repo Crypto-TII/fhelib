@@ -39,16 +39,28 @@ struct tiifhe_encoding {
 };
 
 struct tiifhe_key_public {
+	#if TIIFHE_EXPAND_SEED
+	tiifhe_Poly rand;
+	#else
 	tiifhe_Seed seed;
+	#endif /* TIIFHE_EXPAND_SEED */
 	tiifhe_Poly poly;
 };
 
 struct tiifhe_key_secret {
+	#if TIIFHE_EXPAND_SEED
+	tiifhe_Poly poly[TIIFHE_QPLEN];
+	#else
 	tiifhe_Poly poly;
+	#endif /* TIIFHE_EXPAND_SEED */
 };
 
 struct tiifhe_key_switch {
+	#if TIIFHE_EXPAND_SEED
+	tiifhe_Poly rand[TIIFHE_OMEGA];
+	#else
 	tiifhe_Seed seed;
+	#endif /* TIIFHE_EXPAND_SEED */
 	tiifhe_Poly poly[TIIFHE_OMEGA];
 };
 

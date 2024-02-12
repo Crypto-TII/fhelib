@@ -9,6 +9,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wpedantic -Wundef")
 # options
 option(TIIFHE_BUILD_DEBUG "Build in debug mode" OFF)
 option(TIIFHE_BUILD_TESTS "Build tests" ON)
+option(TIIFHE_EXPAND_SEED "Expand seed for keys" OFF)
 option(TIIFHE_FIX_SEED    "Use fix seeds" OFF)
 option(TIIFHE_LOG_ERROR   "Log error" OFF)
 

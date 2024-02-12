@@ -324,9 +324,20 @@ void
 tiifhe_bgv_keygen_secret(tiifhe_KeySecret *sk)
 {
 	tiifhe_Seed seed;
+	size_t i;
+	(void)i;
 
 	tiifhe_random_seed(&seed);
+	#if TIIFHE_EXPAND_SEED
+	for (i = 0; i < TIIFHE_QPLEN; ++i) {
+		tiifhe_poly_sample_secret(&sk->poly[i], &seed);
+		tiifhe_poly_init(i, &sk->poly[i], &sk->poly[i]);
+		tiifhe_poly_ntt(i, &sk->poly[i]);
+		seed.init = 1;
+	}
+	#else
 	tiifhe_poly_sample_secret(&sk->poly, &seed);
+	#endif /* TIIFHE_EXPAND_SEED */
 }
 
 void
@@ -478,9 +489,27 @@ tiifhe_bgv_decode(tiifhe_Message *m, const tiifhe_Encoding *p)
 	tiifhe_msg_crt(m, rns, mods, len);
 	tiifhe_msg_cmod(m, m, mod);
 
+	#if TIIFHE_LOG_ERROR
+	do {
+		static FILE *f = 0;
+
+		if (f == 0) {
+			f = fopen("error.csv", "w+");
+			if (f == 0) {
+				perror("fhelib: failed to open error.csv");
+				exit(1);
+			}
+		}
+
+		tiifhe_msg_fprintdiv(f, m, tiifhe_t.value);
+	} while (0);
+	#endif /* TIIFHE_LOG_ERROR */
+
 	for (i = 0; i < TIIFHE_QLEN; ++i)
 		for (ii = 0; ii < drops[i]; ++ii)
 			tiifhe_msg_mulc(m, m, tiifhe_q[i].value);
+
+	tiifhe_msg_pmod(m, m, tiifhe_t.value);
 
 	tiifhe_util_dealloc(cpy);
 	mpz_clear(mod);
@@ -573,8 +602,12 @@ tiifhe_bgv_idx_decrypt(size_t idx, tiifhe_Encoding *p, const tiifhe_KeySecret *s
 
 	s = tiifhe_util_alloc(1, sizeof *s);
 
+	#if TIIFHE_EXPAND_SEED
+	memcpy(s, &sk->poly[idx], sizeof *s);
+	#else
 	tiifhe_poly_init(idx, s, &sk->poly);
 	tiifhe_poly_ntt(idx, s);
+	#endif /* TIIFHE_EXPAND_SEED */
 	tiifhe_poly_muladd(idx, &p->value, &ct->poly[1], s, &ct->poly[0]);
 
 	if (ct->degree == 3) {
@@ -608,8 +641,12 @@ tiifhe_bgv_idx_encrypt(size_t idx, tiifhe_Ciphertext *ct, tiifhe_KeyPublic *pk, 
 
 	/* sample and init coins: a, u, e0, e1 */
 	coins = tiifhe_util_alloc(4, sizeof *coins);
+	#if TIIFHE_EXPAND_SEED
+	memcpy(&coins[0], &pk->rand, sizeof coins[0]);
+	#else
 	tiifhe_poly_sample_uniform(idx, &coins[0], &pk->seed);
 	pk->seed.init = 1;
+	#endif /* TIIFHE_EXPAND_SEED */
 
 	tiifhe_poly_sample_secret(&coins[1], seed);
 	tiifhe_poly_init(idx, &coins[1], &coins[1]);
@@ -635,16 +672,23 @@ void
 tiifhe_bgv_idx_keygen_public(size_t idx, tiifhe_KeyPublic *pk, const tiifhe_KeySecret *sk, tiifhe_Seed *seed)
 {
 	tiifhe_Poly *p;
+	tiifhe_Seed sd;
 
 	p = tiifhe_util_alloc(3, sizeof *p);
 
 	/* sample and init polynomials */
-	tiifhe_random_seed(&pk->seed);
-	tiifhe_poly_sample_uniform(idx, &p[0], &pk->seed);
-	pk->seed.init = 1;
+	tiifhe_random_seed(&sd);
+	tiifhe_poly_sample_uniform(idx, &p[0], &sd);
+	sd.init = 1;
 
+	#if TIIFHE_EXPAND_SEED
+	memcpy(&pk->rand, &p[0], sizeof pk->rand);
+	memcpy(&p[1], &sk->poly[idx], sizeof p[1]);
+	#else
+	memcpy(&pk->seed, &sd, sizeof pk->seed);
 	tiifhe_poly_init(idx, &p[1], &sk->poly);
 	tiifhe_poly_ntt(idx, &p[1]);
+	#endif /* TIIFHE_EXPAND_SEED */
 
 	tiifhe_poly_sample_error(&p[2], seed);
 	tiifhe_poly_init_error(idx, &p[2], &p[2]);
@@ -661,18 +705,24 @@ void
 tiifhe_bgv_idx_keygen_switch(size_t idx, tiifhe_KeySwitch *ksw, const tiifhe_KeySecret *sk, const tiifhe_KeySecret *sk2, tiifhe_Seed *seed)
 {
 	tiifhe_Poly *a, *e, *s;
+	tiifhe_Seed sd;
 	size_t k;
 
 	a = tiifhe_util_alloc(TIIFHE_OMEGA, sizeof *a);
 	e = tiifhe_util_alloc(TIIFHE_OMEGA, sizeof *e);
 	s = tiifhe_util_alloc(2, sizeof *s);
 
-	tiifhe_random_seed(&ksw->seed);
+	tiifhe_random_seed(&sd);
 	for (k = 0; k < TIIFHE_OMEGA; ++k) {
-		tiifhe_poly_sample_uniform(idx, &a[k], &ksw->seed);
-		tiifhe_poly_neg(idx, &a[k], &a[k]);
+		tiifhe_poly_sample_uniform(idx, &a[k], &sd);
 	}
-	ksw->seed.init = 1;
+	sd.init = 1;
+
+	#if TIIFHE_EXPAND_SEED
+	memcpy(&ksw->rand, a, TIIFHE_OMEGA * sizeof(tiifhe_Poly));
+	#else
+	memcpy(&ksw->seed, &sd, sizeof ksw->seed);
+	#endif /* TIIFHE_EXPAND_SEED */
 
 	for (k = 0; k < TIIFHE_OMEGA; ++k) {
 		tiifhe_poly_sample_error(&e[k], &seed[k]);
@@ -680,13 +730,22 @@ tiifhe_bgv_idx_keygen_switch(size_t idx, tiifhe_KeySwitch *ksw, const tiifhe_Key
 		seed[k].init = 1;
 	}
 
+	#if TIIFHE_EXPAND_SEED
+	memcpy(&s[0], &sk->poly[idx], sizeof s[0]);
+	#else
 	tiifhe_poly_init(idx, &s[0], &sk->poly);
 	tiifhe_poly_ntt(idx, &s[0]);
+	#endif /* TIIFHE_EXPAND_SEED */
 
+	#if TIIFHE_EXPAND_SEED
+	memcpy(&s[1], &sk2->poly[idx], sizeof s[1]);
+	#else
 	tiifhe_poly_init(idx, &s[1], &sk2->poly);
 	tiifhe_poly_ntt(idx, &s[1]);
+	#endif /* TIIFHE_EXPAND_SEED */
 
 	for (k = 0; k < TIIFHE_OMEGA; ++k) {
+		tiifhe_poly_neg(idx, &a[k], &a[k]);
 		tiifhe_poly_muladd(idx, &ksw->poly[k], &a[k], &s[0], &e[k]);
 
 		if (idx % TIIFHE_OMEGA == k)
@@ -702,15 +761,23 @@ void
 tiifhe_bgv_idx_keygen_switch_mul(size_t idx, tiifhe_KeySwitch *ksw, const tiifhe_KeySecret *sk, tiifhe_Seed *seed)
 {
 	tiifhe_KeySecret *s;
+	size_t i;
+	(void)i;
 
+	#if TIIFHE_EXPAND_SEED
+	s = tiifhe_util_alloc(TIIFHE_QPLEN, sizeof *s);
+	for (i = 0; i < TIIFHE_QPLEN; ++i) {
+		tiifhe_poly_mul(idx, &s->poly[idx], &sk->poly[idx], &sk->poly[idx]);
+	}
+	#else
 	s = tiifhe_util_alloc(1, sizeof *s);
-
 	tiifhe_poly_init(idx, &s->poly, &sk->poly);
 	tiifhe_poly_ntt(idx, &s->poly);
 	tiifhe_poly_mul(idx, &s->poly, &s->poly, &s->poly);
 	tiifhe_poly_intt(idx, &s->poly);
 	tiifhe_poly_deinit(idx, &s->poly, &s->poly);
 	tiifhe_poly_cmod(idx, &s->poly, &s->poly);
+	#endif /* TIIFHE_EXPAND_SEED */
 
 	tiifhe_bgv_idx_keygen_switch(idx, ksw, sk, s, seed);
 
@@ -721,10 +788,19 @@ void
 tiifhe_bgv_idx_keygen_switch_rot(size_t idx, tiifhe_KeySwitch *ksw, const tiifhe_KeySecret *sk, size_t steps, tiifhe_Seed *seed)
 {
 	tiifhe_KeySecret *s;
+	size_t i;
+	(void)i;
 
+	#if TIIFHE_EXPAND_SEED
+	s = tiifhe_util_alloc(TIIFHE_QPLEN, sizeof *s);
+	for (i = 0; i < TIIFHE_QPLEN; ++i) {
+		tiifhe_poly_rot_ntt(idx, &s->poly[idx], &sk->poly[idx], steps);
+	}
+	#else
 	s = tiifhe_util_alloc(1, sizeof *s);
-
 	tiifhe_poly_rot_intt(idx, &s->poly, &sk->poly, steps);
+	#endif /* TIIFHE_EXPAND_SEED */
+
 	tiifhe_bgv_idx_keygen_switch(idx, ksw, sk, s, seed);
 
 	tiifhe_util_dealloc(s);
@@ -760,11 +836,17 @@ tiifhe_bgv_idx_keyswitch_dot(size_t idx, tiifhe_Ciphertext *ct, tiifhe_Ciphertex
 	tiifhe_poly_mulcadd(idx, &ct->poly[0], &csw->ct.poly[0], tiifhe_q[idx].P, &ct->poly[0]);
 
 	for (k = 0; k < TIIFHE_OMEGA; ++k) {
+		#if TIIFHE_EXPAND_SEED
+		tiifhe_poly_muladd(idx, &ct->poly[1], &csw->ext[k], &ksw->rand[k], &ct->poly[1]);
+		#else
 		tiifhe_poly_sample_uniform(idx, a, &ksw->seed);
 		tiifhe_poly_muladd(idx, &ct->poly[1], &csw->ext[k], a, &ct->poly[1]);
+		#endif /* TIIFHE_EXPAND_SEED */
 	}
 	tiifhe_poly_mulcadd(idx, &ct->poly[1], &csw->ct.poly[1], csw->poly == 2 ? tiifhe_q[idx].P : 0, &ct->poly[1]);
+	#if !TIIFHE_EXPAND_SEED
 	ksw->seed.init = 1;
+	#endif /* !TIIFHE_EXPAND_SEED */
 
 	tiifhe_util_dealloc(a);
 }
